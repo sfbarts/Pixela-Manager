@@ -1,6 +1,43 @@
 from dotenv import load_dotenv
 import os
+import requests
+import random
 import tkinter as tk
+
+load_dotenv("./.env")
+USERNAME = os.environ["PIXELA_USR"]
+TOKEN = os.environ["PIXELA_TK"]
+
+headers = {
+    "X-USER-TOKEN": TOKEN,
+}
+print(USERNAME)
+pixela_endpoint = "https://pixe.la/v1/users"
+graph_endpoint = f"{pixela_endpoint}/{USERNAME}/graphs"
+
+colors = {
+    "black": "kuro",
+    "green": "shibafu",
+    "red": "momiji",
+    "blue": "sora",
+    "yellow": "ichou",
+    "purple": "ajisai",
+    "black": "kuro"
+}
+
+
+def create_graph():
+    graph_config = {
+        "id": "graph" + str(random.randint(1, 200)),
+        "name": graph_name_input.get(),
+        "unit": graph_unit_input.get(),
+        "type": unit_type.get(),
+        "color": colors[color.get()]
+    }
+    print(graph_config)
+    response = requests.post(url=graph_endpoint, json=graph_config, headers=headers)
+    print(response.text)
+
 
 window = tk.Tk()
 window.title("Pixela Manager")
@@ -24,21 +61,21 @@ graph_unit_input.grid(column=3, row=2, sticky="EW")
 
 graph_color_label = tk.Label(text="Color")
 graph_color_label.grid(column=0, row=3)
-colors = tk.StringVar(window)
-colors.set("green")
-graph_color_input = tk.OptionMenu(window, colors, "green", "red", "blue", "yellow", "purple", "black")
+color = tk.StringVar(window)
+color.set("green")
+graph_color_input = tk.OptionMenu(window, color, "green", "red", "blue", "yellow", "purple", "black")
 graph_color_input.config(bd=2, highlightthickness=0)
 graph_color_input.grid(column=1, row=3, sticky="EW")
 
 graph_type_label = tk.Label(text="Type")
 graph_type_label.grid(column=2, row=3, sticky="E")
-types = tk.StringVar(window)
-types.set("int")
-graph_type_input = tk.OptionMenu(window, types, "int", "float")
+unit_type = tk.StringVar(window)
+unit_type.set("int")
+graph_type_input = tk.OptionMenu(window, unit_type, "int", "float")
 graph_type_input.config(bd=2, highlightthickness=0)
 graph_type_input.grid(column=3, row=3, sticky="EW")
 
-create_graph_button = tk.Button(text="Create Graph")
+create_graph_button = tk.Button(text="Create Graph", command=create_graph)
 create_graph_button.grid(column=2, row=4, pady=20)
 
 
