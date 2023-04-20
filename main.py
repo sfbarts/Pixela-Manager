@@ -4,6 +4,8 @@ import json
 import requests
 import random
 import tkinter as tk
+os.environ['PATH'] += r";C:\vips-dev-8.14\bin"
+import pyvips
 from tkcalendar import DateEntry
 from datetime import date
 
@@ -137,8 +139,17 @@ description_input.grid(column=0, row=8, columnspan=4, rowspan=2, sticky="NSEW")
 
 add_pixel_button = tk.Button(text="Add Pixel", command=add_pixel)
 add_pixel_button.grid(column=3, row=11)
+selected_graph = [graph for graph in graphs_list if graph["name"] == graph_name.get()]
 
+with open("graph.svg", mode="w") as graph_image:
+    get_graph = requests.get(url=f"{graph_endpoint}/{selected_graph[0]['id']}")
+    img = get_graph.text
+    graph_image.write(img)
 
-
+img = pyvips.Image.new_from_file("./graph.svg", dpi=72)
+img.write_to_file("graph.png")
+image = tk.PhotoImage(file="./graph.png", width=700, height=300)
+label = tk.Label(image=image)
+label.grid(column=0, row=15, columnspan=4)
 
 window.mainloop()
