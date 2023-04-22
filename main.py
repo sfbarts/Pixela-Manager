@@ -42,6 +42,7 @@ def create_graph():
     print(graph_config)
     response = requests.post(url=graph_endpoint, json=graph_config, headers=headers)
     print(response.text)
+    refresh_graphs_options()
 
 
 def delete_graph():
@@ -49,6 +50,9 @@ def delete_graph():
     delete_endpoint = f"{graph_endpoint}/{selected_graph[0]['id']}"
     response = requests.delete(url=delete_endpoint, headers=headers)
     print(response.text)
+    refresh_graphs_options()
+    update_image("")
+
 
 def add_pixel():
     selected_graph = [graph for graph in graphs_list if graph["name"] == graph_name.get()]
@@ -65,7 +69,7 @@ def add_pixel():
 
 
 def load_image():
-    print("load_image() called")
+    graphs_list = get_graphs_list()
     selected_graph = [graph for graph in graphs_list if graph["name"] == graph_name.get()]
     id = selected_graph[0]['id']
     with open(f"graph.svg", mode="wb") as graph_image:
@@ -78,13 +82,25 @@ def load_image():
         png_img.write_to_target(target, ".png")
 
 
-
 def update_image(value):
     load_image()
     image.config(file=f"./graph.png")
     label.config(image=image)
 
 
+def get_graphs_list():
+    graphs_response = requests.get(url=graph_endpoint, headers=headers)
+    graphs_response.raise_for_status()
+    graphs_data = graphs_response.json()
+    return graphs_data["graphs"]
+
+
+def refresh_graphs_options():
+    graph_name_options['menu'].delete(0, 'end')
+    new_graphs_names = [graph["name"] for graph in get_graphs_list()]
+    graph_name.set(new_graphs_names[0])
+    for graph in new_graphs_names:
+        graph_name_options['menu'].add_command(label=graph, command=tk._setit(graph_name, graph, update_image))
 
 
 window = tk.Tk()
@@ -131,10 +147,8 @@ edit_graph_section.grid(column=0, row=5)
 
 select_graph_label = tk.Label(text="Select Graph")
 select_graph_label.grid(column=0, row=6)
-graphs_response = requests.get(url=graph_endpoint, headers=headers)
-graphs_response.raise_for_status()
-graphs_data = graphs_response.json()
-graphs_list = graphs_data["graphs"]
+
+graphs_list = get_graphs_list()
 graphs_names = [graph["name"] for graph in graphs_list]
 graph_name = tk.StringVar(window)
 graph_name.set(graphs_names[0])
