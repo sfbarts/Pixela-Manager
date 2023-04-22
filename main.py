@@ -61,7 +61,29 @@ def add_pixel():
     }
 
     response = requests.post(url=add_pixel_endpoint, json=pixel_config, headers=headers)
-    print(response.text)
+    update_image("")
+
+
+def load_image():
+    print("load_image() called")
+    selected_graph = [graph for graph in graphs_list if graph["name"] == graph_name.get()]
+    id = selected_graph[0]['id']
+    with open(f"graph.svg", mode="wb") as graph_image:
+        get_graph = requests.get(url=f"{graph_endpoint}/{id}")
+        img = get_graph.content
+        graph_image.write(img)
+        source = pyvips.Source.new_from_file("./graph.svg")
+        png_img = pyvips.Image.new_from_source(source, "", dpi=72)
+        target = pyvips.Target.new_to_file(f"./graph.png")
+        png_img.write_to_target(target, ".png")
+
+
+
+def update_image(value):
+    load_image()
+    image.config(file=f"./graph.png")
+    label.config(image=image)
+
 
 
 
@@ -116,7 +138,7 @@ graphs_list = graphs_data["graphs"]
 graphs_names = [graph["name"] for graph in graphs_list]
 graph_name = tk.StringVar(window)
 graph_name.set(graphs_names[0])
-graph_name_options = tk.OptionMenu(window, graph_name, *graphs_names)
+graph_name_options = tk.OptionMenu(window, graph_name, *graphs_names, command=update_image)
 graph_name_options.config(bd=2, highlightthickness=0)
 graph_name_options.grid(column=1, row=6, sticky="EW")
 
@@ -139,16 +161,10 @@ description_input.grid(column=0, row=8, columnspan=4, rowspan=2, sticky="NSEW")
 
 add_pixel_button = tk.Button(text="Add Pixel", command=add_pixel)
 add_pixel_button.grid(column=3, row=11)
-selected_graph = [graph for graph in graphs_list if graph["name"] == graph_name.get()]
 
-with open("graph.svg", mode="w") as graph_image:
-    get_graph = requests.get(url=f"{graph_endpoint}/{selected_graph[0]['id']}")
-    img = get_graph.text
-    graph_image.write(img)
 
-img = pyvips.Image.new_from_file("./graph.svg", dpi=72)
-img.write_to_file("graph.png")
-image = tk.PhotoImage(file="./graph.png", width=700, height=300)
+load_image()
+image = tk.PhotoImage(file=f"./graph.png", width=700, height=300)
 label = tk.Label(image=image)
 label.grid(column=0, row=15, columnspan=4)
 
