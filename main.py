@@ -42,6 +42,8 @@ def create_graph():
     print(graph_config)
     response = requests.post(url=graph_endpoint, json=graph_config, headers=headers)
     print(response.text)
+    graph_name_input.delete(0, 'end')
+    graph_unit_input.delete(0, 'end')
     refresh_graphs_options()
 
 
@@ -55,6 +57,7 @@ def delete_graph():
 
 
 def add_pixel():
+    graphs_list = get_graphs_list()
     selected_graph = [graph for graph in graphs_list if graph["name"] == graph_name.get()]
     date_selected = date_input.get_date().strftime("%Y%m%d")
     add_pixel_endpoint = f"{graph_endpoint}/{selected_graph[0]['id']}"
@@ -66,6 +69,8 @@ def add_pixel():
 
     response = requests.post(url=add_pixel_endpoint, json=pixel_config, headers=headers)
     update_image("")
+    pixel_units_input.delete(0, 'end')
+    description_input.delete(0, 'end')
 
 
 def load_image():
@@ -99,8 +104,10 @@ def refresh_graphs_options():
     graph_name_options['menu'].delete(0, 'end')
     new_graphs_names = [graph["name"] for graph in get_graphs_list()]
     graph_name.set(new_graphs_names[0])
+
     for graph in new_graphs_names:
         graph_name_options['menu'].add_command(label=graph, command=tk._setit(graph_name, graph, update_image))
+
 
 
 window = tk.Tk()
