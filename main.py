@@ -31,6 +31,7 @@ colors = {
 }
 
 global graphs_dict
+global graphs_img_list
 
 
 def create_graph():
@@ -82,9 +83,12 @@ def add_pixel():
 
     try:
         response = requests.post(url=add_pixel_endpoint, json=pixel_config, headers=headers)
+        print(response)
     except requests.exceptions.HTTPError:
         print("Could not add pixel, try again")
     else:
+        print("Pixel Added")
+        load_image()
         update_image("")
         pixel_units_input.delete(0, 'end')
         description_input.delete(0, 'end')
@@ -93,6 +97,7 @@ def add_pixel():
 def load_image():
     selected_id = graphs_dict[graph_name.get()]
     print(f"Selected id {selected_id}")
+
     try:
         get_graph = requests.get(url=f"{graph_endpoint}/{selected_id}")
     except requests.exceptions.HTTPError:
@@ -103,14 +108,20 @@ def load_image():
             graph_image.write(img)
             source = pyvips.Source.new_from_file("./graph.svg")
             png_img = pyvips.Image.new_from_source(source, "", dpi=72)
-            target = pyvips.Target.new_to_file(f"./graph.png")
+            target = pyvips.Target.new_to_file(f"./{selected_id}.png")
             png_img.write_to_target(target, ".png")
 
 
+
 def update_image(value):
-    load_image()
-    image.config(file=f"./graph.png")
-    label.config(image=image)
+    selected_id = graphs_dict[graph_name.get()]
+
+    if os.path.exists(f"./{selected_id}.png"):
+        image.config(file=f"./{selected_id}.png")
+        label.config(image=image)
+    else:
+        load_image()
+        update_image(selected_id)
 
 
 def get_graphs_list():
@@ -140,6 +151,7 @@ window.config(padx=30, pady=60)
 
 title_label = tk.Label(text="Pixela Manager", font=("Arial", 20, "bold"))
 title_label.place(x=115, y=-40)
+
 # Create Section
 create_section_label = tk.Label(text="Create Graph")
 create_section_label.grid(column=0, row=1)
@@ -180,7 +192,7 @@ edit_graph_section.grid(column=0, row=5)
 select_graph_label = tk.Label(text="Select Graph")
 select_graph_label.grid(column=0, row=6)
 
-# graphs_list = []
+
 graphs_names = list(graphs_dict.keys())
 print(graphs_names)
 graph_name = tk.StringVar(window)
@@ -209,9 +221,9 @@ description_input.grid(column=0, row=8, columnspan=4, rowspan=2, sticky="NSEW")
 add_pixel_button = tk.Button(text="Add Pixel", command=add_pixel)
 add_pixel_button.grid(column=3, row=11)
 
-
+selected_id = graphs_dict[graph_name.get()]
 load_image()
-image = tk.PhotoImage(file=f"./graph.png", width=700, height=300)
+image = tk.PhotoImage(file=f"./{selected_id}.png", width=700, height=300)
 label = tk.Label(image=image)
 label.grid(column=0, row=15, columnspan=4)
 
