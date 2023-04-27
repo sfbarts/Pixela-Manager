@@ -92,6 +92,7 @@ def add_pixel():
         update_image("")
         pixel_units_input.delete(0, 'end')
         description_input.delete(0, 'end')
+        get_pixel_details("")
 
 
 def load_image():
@@ -141,6 +142,40 @@ def refresh_graphs_options():
 
     for graph in new_graphs_names:
         graph_name_options['menu'].add_command(label=graph, command=tk._setit(graph_name, graph, update_image))
+
+
+def get_pixel_details(var):
+
+    date_selected = date_input.get_date().strftime("%Y%m%d")
+    selected_id = graphs_dict[graph_name.get()]
+    get_pixel_endpoint = f"{graph_endpoint}/{selected_id}/{date_selected}"
+
+    try:
+        response = requests.get(url=get_pixel_endpoint, headers=headers)
+    except requests.exceptions.HTTPError:
+        print("Could not get details")
+    else:
+        pixel_data = response.json()
+        pixel_date.config(text=date_input.get_date())
+        print(pixel_data)
+        if 'message' in pixel_data.keys():
+            pixel_info.config(text="No data for this date yet")
+            pixel_description.config(text="")
+            return
+
+        if len(pixel_data["quantity"]) > 0:
+            pixel_info.config(text=pixel_data["quantity"])
+        else:
+            pixel_info.config(text="No data for this day")
+
+        if len(pixel_data["optionalData"]) > 0:
+            pixel_description.config(text=pixel_data["optionalData"])
+        else:
+            pixel_description.config(text="No data for this day")
+
+
+
+
 
 
 graphs_dict = get_graphs_list()
@@ -212,6 +247,7 @@ date_label = tk.Label(text="Date:")
 date_label.grid(column=2, row=7)
 date_input = DateEntry(window, selectmode='day')
 date_input.grid(column=3, row=7)
+date_input.bind('<<DateEntrySelected>>', get_pixel_details)
 
 description_input = tk.Entry()
 description_input.insert(tk.END, "Optional description")
@@ -219,12 +255,34 @@ description_input.grid(column=0, row=8, columnspan=4, rowspan=2, sticky="NSEW")
 
 
 add_pixel_button = tk.Button(text="Add Pixel", command=add_pixel)
-add_pixel_button.grid(column=3, row=11)
+add_pixel_button.grid(column=3, row=10)
 
 selected_id = graphs_dict[graph_name.get()]
 load_image()
-image = tk.PhotoImage(file=f"./{selected_id}.png", width=700, height=300)
+image = tk.PhotoImage(file=f"./{selected_id}.png")
 label = tk.Label(image=image)
-label.grid(column=0, row=15, columnspan=4)
+label.grid(column=0, row=11, columnspan=4)
+
+# Pixel Info
+pixel_section_label = tk.Label(text="Pixel Info")
+pixel_section_label.grid(column=0, row=12)
+
+# Pixel Date
+date_title = tk.Label(text="Date:")
+date_title.grid(column=0, row=13, sticky="W")
+date_formatted = date_input.get_date()
+pixel_date = tk.Label(text=f"{date_formatted}")
+pixel_date.grid(column=0, row=14, sticky="W")
+
+# Pixel Info
+pixel_info_title = tk.Label(text="Info")
+pixel_info_title.grid(column=1, row=13, sticky="W")
+pixel_info = tk.Label(text="")
+pixel_info.grid(column=1, row=14, sticky="W")
+pixel_description_title = tk.Label(text="Description:")
+pixel_description_title.grid(column=2, row=13, sticky="W")
+pixel_description = tk.Label(text="")
+pixel_description.grid(column=2, row=14, sticky="W")
+
 
 window.mainloop()
