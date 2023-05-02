@@ -233,8 +233,9 @@ print(graphs_names)
 graph_name = tk.StringVar(window)
 graph_name.set(graphs_names[0])
 graph_name_options = tk.OptionMenu(window, graph_name, *graphs_names, command=update_image)
-graph_name_options.config(bd=2, highlightthickness=0)
+graph_name_options.config(bd=2, highlightthickness=0, width=20)
 graph_name_options.grid(column=1, row=6, sticky="EW")
+
 
 delete_graph_button = tk.Button(text="Delete Graph", command=delete_graph)
 delete_graph_button.grid(column=3, row=6, pady=20)
