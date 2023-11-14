@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from dotenv import load_dotenv
 import os
 import json
@@ -27,7 +28,6 @@ colors = {
     "blue": "sora",
     "yellow": "ichou",
     "purple": "ajisai",
-    "black": "kuro"
 }
 
 global graphs_dict
