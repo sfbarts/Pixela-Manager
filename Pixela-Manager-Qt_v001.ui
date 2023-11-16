@@ -48,7 +48,7 @@ QPushButton {
 	border-radius: 5px;
 }</string>
   </property>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -274,7 +274,7 @@ QPushButton:pressed {
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -397,7 +397,7 @@ QPushButton:pressed {
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -485,7 +485,7 @@ QPushButton:pressed {
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="unit_name_label_2">
+         <widget class="QLineEdit" name="unit_name_input">
           <property name="placeholderText">
            <string>e.g Pages</string>
           </property>
@@ -698,12 +698,12 @@ QPushButton:pressed {
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
      <y>210</y>
-     <width>561</width>
+     <width>573</width>
      <height>183</height>
     </rect>
    </property>
