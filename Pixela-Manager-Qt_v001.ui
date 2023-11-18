@@ -703,7 +703,7 @@ QPushButton:pressed {
     <rect>
      <x>20</x>
      <y>210</y>
-     <width>573</width>
+     <width>561</width>
      <height>183</height>
     </rect>
    </property>
@@ -765,7 +765,7 @@ QPushButton:pressed {
          <enum>QComboBox::AdjustToContentsOnFirstShow</enum>
         </property>
         <property name="placeholderText">
-         <string>Workout</string>
+         <string/>
         </property>
        </widget>
       </item>

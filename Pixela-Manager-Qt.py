@@ -1,10 +1,16 @@
 import sys
 import os
+os.environ['PATH'] += r";C:\vips-dev-8.14\bin"
 from dotenv import load_dotenv
 import random
 import requests
 from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtGui import QPixmap, QPainter
+from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtCore import QSize
 from PyQt6 import uic
+import pyvips
+
 
 load_dotenv("./.env")
 USERNAME = os.environ["PIXELA_USR"]
@@ -17,6 +23,17 @@ headers = {
 pixela_endpoint = "https://pixe.la/v1/users"
 graph_endpoint = f"{pixela_endpoint}/{USERNAME}/graphs"
 
+
+def get_graphs_list():
+    graphs_response = requests.get(url=graph_endpoint, headers=headers)
+    graphs_response.raise_for_status()
+    graphs_data = graphs_response.json()
+    response_dict = {}
+    for graph in graphs_data["graphs"]:
+        response_dict[graph["name"]] = graph["id"]
+    return response_dict
+
+
 class Main(QWidget):
     def __init__(self):
         super().__init__()
@@ -25,6 +42,7 @@ class Main(QWidget):
         self.ui = uic.loadUi("Pixela-Manager-Qt_v001.ui", self)
 
         self.graph_color = ""
+        self.graph_dict = get_graphs_list()
 
         # connect radio buttons
         self.ui.green_color_picker.toggled.connect(self.get_graph_color)
@@ -36,6 +54,13 @@ class Main(QWidget):
 
         # connect create graph button
         self.ui.create_graph_button.clicked.connect(self.create_graph)
+
+        # connect delete graph button
+        self.ui.delete_graph_button.clicked.connect(self.delete_graph)
+
+        self.set_graph_menu()
+        self.get_graph_image()
+        self.ui.select_graph_menu.currentTextChanged.connect(self.update_graph_image)
 
     def create_graph(self):
         graph_config = {
@@ -74,6 +99,52 @@ class Main(QWidget):
                 self.graph_color = "ajisai"
             elif selected_color == self.ui.kuro_color_picker:
                 self.graph_color = "kuro"
+
+    def set_graph_menu(self):
+        for graph in list(self.graph_dict.keys()):
+            self.ui.select_graph_menu.addItem(graph)
+
+    def get_graph_image(self):
+        graph_key = self.ui.select_graph_menu.currentText()
+        graph_id = self.graph_dict[graph_key]
+        try:
+            get_graph = requests.get(url=f"{graph_endpoint}/{graph_id}")
+        except requests.exceptions.HTTPError:
+            print("Could not get image")
+        else:
+            with open(f"graph.svg", mode="wb") as graph_image:
+                graph_image.write(get_graph.content)
+                source = pyvips.Source.new_from_file("./graph.svg")
+                png_img = pyvips.Image.new_from_source(source, "", dpi=72)
+                target = pyvips.Target.new_to_file(f"./{graph_id}.png")
+                png_img.write_to_target(target, ".png")
+                graph_pixmap = QPixmap(f"./{graph_id}.png")
+                self.ui.graph_image.setPixmap(graph_pixmap)
+
+    def update_graph_image(self):
+        graph_key = self.ui.select_graph_menu.currentText()
+        graph_id = self.graph_dict[graph_key]
+        if os.path.exists(f"./{graph_id}.png"):
+            graph_pixmap = QPixmap(f"./{graph_id}.png")
+            self.ui.graph_image.setPixmap(graph_pixmap)
+        else:
+            self.get_graph_image()
+            self.update_graph_image()
+
+    def delete_graph(self):
+        graph_key = self.ui.select_graph_menu.currentText()
+        graph_id = self.graph_dict[graph_key]
+        delete_endpoint = f"{graph_endpoint}/{graph_id}"
+
+        try:
+            response = requests.delete(url=delete_endpoint, headers=headers)
+        except requests.exceptions.HTTPError:
+            print("Could not delete graph, try again")
+        else:
+            self.graph_dict.pop(graph_key)
+            self.ui.select_graph_menu.removeItem(self.ui.select_graph_menu.currentIndex())
+            print(graph_id)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
