@@ -5,9 +5,7 @@ from dotenv import load_dotenv
 import random
 import requests
 from PyQt6.QtWidgets import QApplication, QWidget
-from PyQt6.QtGui import QPixmap, QPainter
-from PyQt6.QtSvg import QSvgRenderer
-from PyQt6.QtCore import QSize
+from PyQt6.QtGui import QPixmap
 from PyQt6 import uic
 import pyvips
 
