@@ -1,14 +1,13 @@
 import sys
 import os
-os.environ['PATH'] += r";C:\vips-dev-8.14\bin"
 from dotenv import load_dotenv
 import random
 import requests
 from PyQt6.QtWidgets import QApplication, QWidget
 from PyQt6.QtGui import QPixmap
 from PyQt6 import uic
+os.environ['PATH'] += r";C:\vips-dev-8.14\bin"
 import pyvips
-
 
 load_dotenv("./.env")
 USERNAME = os.environ["PIXELA_USR"]
@@ -30,6 +29,11 @@ def get_graphs_list():
     for graph in graphs_data["graphs"]:
         response_dict[graph["name"]] = graph["id"]
     return response_dict
+
+
+def clean_up():
+    for file in os.listdir("./image_cache"):
+        os.remove(f"./image_cache/{file}")
 
 
 class Main(QWidget):
@@ -57,7 +61,7 @@ class Main(QWidget):
         self.ui.delete_graph_button.clicked.connect(self.delete_graph)
 
         self.set_graph_menu()
-        self.get_graph_image()
+        self.cache_graph_images()
         self.ui.select_graph_menu.currentTextChanged.connect(self.update_graph_image)
 
     def create_graph(self):
@@ -68,13 +72,18 @@ class Main(QWidget):
             "type": self.get_unit_type(),
             "color": self.graph_color
         }
-        print(graph_config)
+
+        if graph_config["name"] in self.graph_dict.keys():
+            # Temporal solution to prevent duplicate names
+            print("Name already exists")
+            return
         try:
             response = requests.post(url=graph_endpoint, json=graph_config, headers=headers)
-            print(response.text)
         except requests.exceptions.HTTPError:
-            print(response.text)
-            print("Could not add the new graph, try again")
+            self.create_graph()
+        else:
+            self.graph_dict[graph_config["name"]] = graph_config["id"]
+            self.add_graph_to_menu(graph_config["name"])
 
     def get_unit_type(self):
         if self.ui.unit_type_menu.currentText() == "Decimal":
@@ -95,38 +104,45 @@ class Main(QWidget):
                 self.graph_color = "ichou"
             elif selected_color == self.ui.purple_color_picker:
                 self.graph_color = "ajisai"
-            elif selected_color == self.ui.kuro_color_picker:
+            elif selected_color == self.ui.black_color_picker:
                 self.graph_color = "kuro"
 
     def set_graph_menu(self):
         for graph in list(self.graph_dict.keys()):
             self.ui.select_graph_menu.addItem(graph)
 
-    def get_graph_image(self):
-        graph_key = self.ui.select_graph_menu.currentText()
-        graph_id = self.graph_dict[graph_key]
+    def add_graph_to_menu(self, graph):
+        self.ui.select_graph_menu.addItem(graph)
+        self.ui.select_graph_menu.setCurrentText(graph)
+
+    def get_graph_image(self, graph_id):
         try:
             get_graph = requests.get(url=f"{graph_endpoint}/{graph_id}")
         except requests.exceptions.HTTPError:
             print("Could not get image")
+            self.get_graph_image(graph_id)
         else:
-            with open(f"graph.svg", mode="wb") as graph_image:
+            with open(f"image_cache/graph.svg", mode="wb") as graph_image:
                 graph_image.write(get_graph.content)
-                source = pyvips.Source.new_from_file("./graph.svg")
+                source = pyvips.Source.new_from_file("image_cache/graph.svg")
                 png_img = pyvips.Image.new_from_source(source, "", dpi=72)
-                target = pyvips.Target.new_to_file(f"./{graph_id}.png")
+                target = pyvips.Target.new_to_file(f"image_cache/{graph_id}.png")
                 png_img.write_to_target(target, ".png")
-                graph_pixmap = QPixmap(f"./{graph_id}.png")
-                self.ui.graph_image.setPixmap(graph_pixmap)
+                self.update_graph_image()
+
+    def cache_graph_images(self):
+        for graph in list(self.graph_dict.values()):
+            if not os.path.exists(f"image_cache/{graph}.png"):
+                self.get_graph_image(graph)
 
     def update_graph_image(self):
         graph_key = self.ui.select_graph_menu.currentText()
         graph_id = self.graph_dict[graph_key]
-        if os.path.exists(f"./{graph_id}.png"):
-            graph_pixmap = QPixmap(f"./{graph_id}.png")
+        if os.path.exists(f"image_cache/{graph_id}.png"):
+            graph_pixmap = QPixmap(f"image_cache/{graph_id}.png")
             self.ui.graph_image.setPixmap(graph_pixmap)
         else:
-            self.get_graph_image()
+            self.get_graph_image(graph_id)
             self.update_graph_image()
 
     def delete_graph(self):
@@ -146,6 +162,7 @@ class Main(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.aboutToQuit.connect(clean_up)
     main = Main()
     main.show()
     sys.exit(app.exec())
