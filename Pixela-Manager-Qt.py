@@ -213,8 +213,8 @@ class Main(QWidget):
     def update_graph(self):
         self.current_graph_key = self.ui.select_graph_menu.currentText()
         self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
-        self.update_graph_image()
         self.start_task()
+        self.update_graph_image()
 
     # delete_graph() - deletes graph from Pixela based on selected graph.
     def delete_graph(self):
@@ -292,8 +292,7 @@ class Main(QWidget):
         else:
             print("Pixel Added")
             self.get_graph_image(self.current_graph_id)
-            self.update_graph_image()
-            self.set_pixel_details()
+            self.update_graph()
             self.ui.pixel_units_input.clear()
             self.ui.pixel_description_box.clear()
 
