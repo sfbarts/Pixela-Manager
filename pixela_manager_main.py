@@ -1,51 +1,15 @@
-import sys
 import os
-from dotenv import load_dotenv
 import random
 import requests
 import json
 import re
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QWidget
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import QDate, QThread, pyqtSignal
 from PyQt6 import uic
 
 os.environ['PATH'] += r";C:\vips-dev-8.14\bin"
 import pyvips
-
-load_dotenv("./.env")
-USERNAME = os.environ["PIXELA_USR"]
-TOKEN = os.environ["PIXELA_TK"]
-
-headers = {
-    "X-USER-TOKEN": TOKEN,
-}
-
-pixela_endpoint = "https://pixe.la/v1/users"
-graph_endpoint = f"{pixela_endpoint}/{USERNAME}/graphs"
-
-
-# get_graphs_list() - get list of graphs from pixela and store relevant details
-def get_graphs_list():
-    try:
-        graphs_response = requests.get(url=graph_endpoint, headers=headers)
-        graphs_response.raise_for_status()
-    except requests.exceptions.HTTPError:
-        return get_graphs_list()
-    else:
-        graphs_data = graphs_response.json()
-        response_dict = {}
-        for graph in graphs_data["graphs"]:
-            response_dict.setdefault(graph["name"], {})
-            response_dict[graph["name"]]["id"] = graph["id"]
-            response_dict[graph["name"]]["unit"] = graph["unit"]
-        return response_dict
-
-
-# clean_up() - Used to remove all cached images when app is closed.
-def clean_up():
-    for file in os.listdir("./image_cache"):
-        os.remove(f"./image_cache/{file}")
 
 
 # WorkerThread is a class that is used to perform a task in parallel.
@@ -69,8 +33,13 @@ def validate_units(value):
 
 
 class Main(QWidget):
-    def __init__(self):
+    def __init__(self, username, token):
         super().__init__()
+        self.headers = {
+            "X-USER-TOKEN": token,
+        }
+        pixela_endpoint = "https://pixe.la/v1/users"
+        self.graph_endpoint = f"{pixela_endpoint}/{username}/graphs"
 
         # import ui from qt designer
         self.ui = uic.loadUi("Pixela-Manager-Qt_v001.ui", self)
@@ -78,7 +47,7 @@ class Main(QWidget):
 
         # initialize variables that will be used on other methods
         self.graph_color = ""
-        self.graph_dict = get_graphs_list()
+        self.graph_dict = self.get_graphs_list()
 
         # connect radio buttons toggled signals for color picking to get_graph_color()
         self.ui.green_color_picker.toggled.connect(self.get_graph_color)
@@ -89,7 +58,8 @@ class Main(QWidget):
         self.ui.black_color_picker.toggled.connect(self.get_graph_color)
 
         # connect create graph button clicked signal to create_graph()
-        self.ui.create_graph_button.clicked.connect(self.create_graph)
+        self.ui.create_graph_button.clicked.connect(lambda: self.start_task(self.create_graph,
+                                                                            self.ui.progress_bar.hide))
 
         # connect delete graph button clicked signal to delete_graph()
         self.ui.delete_graph_button.clicked.connect(self.delete_graph)
@@ -102,17 +72,36 @@ class Main(QWidget):
         self.update_graph_image()
 
         # connect graph selector menu currentTextChanged signal to update_graph()
-        self.ui.select_graph_menu.currentTextChanged.connect(self.update_graph)
+        self.ui.select_graph_menu.currentTextChanged.connect(lambda: self.start_task(self.update_graph,
+                                                                                     self.ui.progress_bar.hide))
 
         # set date picker to current date on load and connect it to start task slot
         self.ui.date_picker.setDate(QDate.currentDate())
-        self.ui.date_picker.dateChanged.connect(self.start_task)
+        self.ui.date_picker.dateChanged.connect(lambda: self.start_task(self.set_pixel_details,
+                                                                        self.ui.progress_bar.hide))
 
-        # connect update pixel button clicked signal to add_pixel()
-        self.ui.update_pixel_button.clicked.connect(self.add_pixel)
+        # connect update pixel button clicked signal to handle_add_pixel()
+        self.ui.update_pixel_button.clicked.connect(lambda: self.start_task(self.add_pixel,
+                                                                            self.handle_add_pixel_finish))
 
         # initialize pixel details section
         self.set_pixel_details()
+
+    # get_graphs_list() - get list of graphs from pixela and store relevant details
+    def get_graphs_list(self):
+        try:
+            graphs_response = requests.get(url=self.graph_endpoint, headers=self.headers)
+            graphs_response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            return self.get_graphs_list()
+        else:
+            graphs_data = graphs_response.json()
+            response_dict = {}
+            for graph in graphs_data["graphs"]:
+                response_dict.setdefault(graph["name"], {})
+                response_dict[graph["name"]]["id"] = graph["id"]
+                response_dict[graph["name"]]["unit"] = graph["unit"]
+            return response_dict
 
     # CREATE GRAPH SECTION ------------------------------------
     # create_graph() - uses input to create a new graph in Pixela. Graph and Pixel Manager sections update accordingly.
@@ -130,7 +119,7 @@ class Main(QWidget):
             print("Name already exists")
             return
         try:
-            response = requests.post(url=graph_endpoint, json=graph_config, headers=headers)
+            response = requests.post(url=self.graph_endpoint, json=graph_config, headers=self.headers)
             response.raise_for_status()
         except requests.exceptions.HTTPError:
             return self.create_graph()
@@ -181,7 +170,7 @@ class Main(QWidget):
     # get_graph_image() - Auxiliary method to get a graph image from pixela and convert it to PNG.
     def get_graph_image(self, graph_id):
         try:
-            get_graph = requests.get(url=f"{graph_endpoint}/{graph_id}")
+            get_graph = requests.get(url=f"{self.graph_endpoint}/{graph_id}")
         except requests.exceptions.HTTPError:
             print("Could not get image")
             return self.get_graph_image(graph_id)
@@ -209,19 +198,19 @@ class Main(QWidget):
             self.get_graph_image(self.current_graph_id)
             self.update_graph_image()
 
-    # update_graph() - Method to run update_graph_image() and start_task() at once
+    # update_graph() - Method to run update_graph_image() and set_pixel_details() at once
     def update_graph(self):
         self.current_graph_key = self.ui.select_graph_menu.currentText()
         self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
-        self.start_task()
         self.update_graph_image()
+        self.set_pixel_details()
 
     # delete_graph() - deletes graph from Pixela based on selected graph.
     def delete_graph(self):
-        delete_endpoint = f"{graph_endpoint}/{self.current_graph_id}"
+        delete_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}"
 
         try:
-            response = requests.delete(url=delete_endpoint, headers=headers)
+            response = requests.delete(url=delete_endpoint, headers=self.headers)
         except requests.exceptions.HTTPError:
             print("Could not delete graph, try again")
             return self.delete_graph()
@@ -236,10 +225,10 @@ class Main(QWidget):
         date_selected = self.ui.date_picker.date().toString("yyyyMMdd")
         date_formatted = self.ui.date_picker.date().toString("yyyy/MM/dd")
         self.ui.pixel_units_label.setText(f"{graph_unit.capitalize()}:")
-        get_pixel_endpoint = f"{graph_endpoint}/{self.current_graph_id}/{date_selected}"
+        get_pixel_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}/{date_selected}"
 
         try:
-            response = requests.get(url=get_pixel_endpoint, headers=headers)
+            response = requests.get(url=get_pixel_endpoint, headers=self.headers)
             response.raise_for_status()
         except requests.exceptions.HTTPError:
             if response.status_code == 404:
@@ -271,7 +260,7 @@ class Main(QWidget):
     # add_pixel() - uses input to create a pixel for a specific date based on selected graph.
     def add_pixel(self):
         date_selected = self.ui.date_picker.date().toString("yyyyMMdd")
-        add_pixel_endpoint = f"{graph_endpoint}/{self.current_graph_id}/{date_selected}"
+        add_pixel_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}/{date_selected}"
         quantity = self.ui.pixel_units_input.text()
         quantity_is_number = validate_units(quantity)
         if not quantity_is_number:
@@ -285,34 +274,26 @@ class Main(QWidget):
         }
 
         try:
-            response = requests.put(url=add_pixel_endpoint, json=pixel_config, headers=headers)
+            response = requests.put(url=add_pixel_endpoint, json=pixel_config, headers=self.headers)
             response.raise_for_status()
         except requests.exceptions.HTTPError:
             return self.add_pixel()
         else:
-            print("Pixel Added")
             self.get_graph_image(self.current_graph_id)
             self.update_graph()
-            self.ui.pixel_units_input.clear()
-            self.ui.pixel_description_box.clear()
+
+    def handle_add_pixel_finish(self):
+        self.ui.progress_bar.hide()
+        self.ui.pixel_units_input.clear()
+        self.ui.pixel_description_box.clear()
+
+
 
     # start_task() - launches the worker thread to run set_pixel_details in parallel. Allows progress bar to be shown.
-    def start_task(self):
-        self.ui.progress_bar.setValue(random.randint(25, 75))
+    def start_task(self, start_method, finish_method):
+        self.ui.progress_bar.setValue(random.randint(25, 95))
         self.ui.progress_bar.show()
 
-        self.worker_thread = WorkerThread(self.set_pixel_details)
-        self.worker_thread.finished_signal.connect(self.task_complete)
+        self.worker_thread = WorkerThread(start_method)
+        self.worker_thread.finished_signal.connect(finish_method)
         self.worker_thread.start()
-
-    # task_complete() - hide progress bar after pixel details are loaded
-    def task_complete(self):
-        self.ui.progress_bar.hide()
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    app.aboutToQuit.connect(clean_up)
-    main = Main()
-    main.show()
-    sys.exit(app.exec())
