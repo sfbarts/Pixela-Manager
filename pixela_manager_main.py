@@ -3,7 +3,7 @@ import random
 import requests
 import json
 import re
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget, QMessageBox
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import QDate, QThread, pyqtSignal
 from PyQt6 import uic
@@ -47,6 +47,7 @@ class Main(QWidget):
 
         # initialize variables that will be used on other methods
         self.graph_color = ""
+        self.graph_unit = ""
         self.graph_dict = self.get_graphs_list()
 
         # connect radio buttons toggled signals for color picking to get_graph_color()
@@ -58,8 +59,7 @@ class Main(QWidget):
         self.ui.black_color_picker.toggled.connect(self.get_graph_color)
 
         # connect create graph button clicked signal to create_graph()
-        self.ui.create_graph_button.clicked.connect(lambda: self.start_task(self.create_graph,
-                                                                            self.ui.progress_bar.hide))
+        self.ui.create_graph_button.clicked.connect(self.validate_graph_creation)
 
         # connect delete graph button clicked signal to delete_graph()
         self.ui.delete_graph_button.clicked.connect(self.delete_graph)
@@ -81,12 +81,12 @@ class Main(QWidget):
                                                                         self.ui.progress_bar.hide))
 
         # connect update pixel button clicked signal to handle_add_pixel()
-        self.ui.update_pixel_button.clicked.connect(lambda: self.start_task(self.add_pixel,
-                                                                            self.handle_add_pixel_finish))
+        self.ui.update_pixel_button.clicked.connect(self.validate_pixel_creation)
 
         # initialize pixel details section
         self.set_pixel_details()
 
+    # INITIAL GRAPH LIST SETUP ---------------------------------
     # get_graphs_list() - get list of graphs from pixela and store relevant details
     def get_graphs_list(self):
         try:
@@ -104,33 +104,56 @@ class Main(QWidget):
             return response_dict
 
     # CREATE GRAPH SECTION ------------------------------------
+    # validate_graph_creation() - Makes sure names are unique and makes sure all inputs are present.
+    def validate_graph_creation(self):
+        name = self.ui.graph_name_input.text()
+        unit = self.ui.unit_name_input.text()
+        color = self.graph_color
+        unit_type = self.get_unit_type()
+
+        if name in self.graph_dict.keys():
+            QMessageBox.warning(self, "Invalid Graph", f"{name} already exists.")
+            return
+        if name == "" or unit == "" or color == "":
+            QMessageBox.warning(self, "Invalid Graph", "Please specify name, unit and color.")
+            return
+        else:
+            self.start_task(lambda: self.create_graph(name, unit, color, unit_type),
+                            self.handle_create_graph_finish)
+
     # create_graph() - uses input to create a new graph in Pixela. Graph and Pixel Manager sections update accordingly.
-    def create_graph(self):
+    def create_graph(self, name, unit, color, unit_type):
         graph_config = {
             "id": "graph" + str(random.randint(1, 200)),
-            "name": self.ui.graph_name_input.text(),
-            "unit": self.ui.unit_name_input.text(),
-            "type": self.get_unit_type(),
-            "color": self.graph_color
+            "name": name,
+            "unit": unit,
+            "type": unit_type,
+            "color": color
         }
 
-        if graph_config["name"] in self.graph_dict.keys():
-            # Temporal solution to prevent duplicate names
-            print("Name already exists")
-            return
         try:
             response = requests.post(url=self.graph_endpoint, json=graph_config, headers=self.headers)
             response.raise_for_status()
         except requests.exceptions.HTTPError:
-            return self.create_graph()
+            return self.create_graph(name, unit, color, unit_type)
         else:
             self.graph_dict.setdefault(graph_config["name"], {})
             self.graph_dict[graph_config["name"]]["id"] = graph_config["id"]
             self.graph_dict[graph_config["name"]]["unit"] = graph_config["unit"]
-            self.add_graph_to_menu(graph_config["name"])
-            self.update_graph()
-            self.ui.graph_name_input.clear()
-            self.ui.unit_name_input.clear()
+            self.get_graph_image(graph_config["id"])
+            self.current_graph_key = graph_config["name"]
+
+    # handle_create_finish() - Updates ui after graph creation thread is finished.
+    def handle_create_graph_finish(self):
+        self.add_graph_to_menu(self.current_graph_key)
+        self.update_graph()
+        self.ui.graph_name_input.clear()
+        self.ui.unit_name_input.clear()
+
+    # add_graph_to_menu() - Auxiliary method to add new items to the graph selection menu on graph creation.
+    def add_graph_to_menu(self, graph):
+        self.ui.select_graph_menu.addItem(graph)
+        self.ui.select_graph_menu.setCurrentText(graph)
 
     # get_unit_type() - Auxiliary method to format unit name input to the correct value accepted by Pixela.
     def get_unit_type(self):
@@ -155,11 +178,6 @@ class Main(QWidget):
                 self.graph_color = "ajisai"
             elif selected_color == self.ui.black_color_picker:
                 self.graph_color = "kuro"
-
-    # add_graph_to_menu() - Auxiliary method to add new items to the graph selection menu on graph creation.
-    def add_graph_to_menu(self, graph):
-        self.ui.select_graph_menu.addItem(graph)
-        self.ui.select_graph_menu.setCurrentText(graph)
 
     # GRAPH MANAGER SECTION --------------------------------------------------
     # set_graph_menu() - Auxiliary method to update the graph selection menu on start.
@@ -221,10 +239,10 @@ class Main(QWidget):
     # MANAGE PIXEL SECTION -------------------------------------------------------------
     # get_pixel_details() - Auxiliary method to get data from a specific pixel on Pixela.
     def get_pixel_details(self):
-        graph_unit = self.graph_dict[self.current_graph_key]["unit"]
+        self.graph_unit = self.graph_dict[self.current_graph_key]["unit"].capitalize()
         date_selected = self.ui.date_picker.date().toString("yyyyMMdd")
         date_formatted = self.ui.date_picker.date().toString("yyyy/MM/dd")
-        self.ui.pixel_units_label.setText(f"{graph_unit.capitalize()}:")
+        self.ui.pixel_units_label.setText(f"{self.graph_unit}:")
         get_pixel_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}/{date_selected}"
 
         try:
@@ -238,7 +256,7 @@ class Main(QWidget):
             return self.get_pixel_details()
         else:
             pixel_data = response.json()
-            pixel_data["unit"] = graph_unit
+            pixel_data["unit"] = self.graph_unit
             pixel_data["date"] = date_formatted
             if pixel_data["optionalData"] == '""':
                 pixel_data["optionalData"] = "No description added."
@@ -257,27 +275,34 @@ class Main(QWidget):
                                             f"Description: {pixel_details['optionalData']}")
         self.ui.update_pixel_button.setText("Update Pixel")
 
-    # add_pixel() - uses input to create a pixel for a specific date based on selected graph.
-    def add_pixel(self):
+    # validate_pixel_creation() - Checks that units are present and are valid. Starts add_pixel task if valid.
+    def validate_pixel_creation(self):
+        unit_name = self.graph_unit
         date_selected = self.ui.date_picker.date().toString("yyyyMMdd")
-        add_pixel_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}/{date_selected}"
         quantity = self.ui.pixel_units_input.text()
         quantity_is_number = validate_units(quantity)
-        if not quantity_is_number:
-            return print("Quantity must be a number")
+        description = self.ui.pixel_description_box.toPlainText()
+        if quantity == "":
+            QMessageBox.warning(self, f"Missing {unit_name}", f"Please specify {unit_name}.")
+        elif not quantity_is_number:
+            QMessageBox.warning(self, f"Invalid {unit_name}", f"{unit_name} must be a number.")
+        else:
+            pixel_config = {
+                "quantity": quantity,
+            }
+            if description != "":
+                pixel_config["optionalData"] = json.dumps(description)
+            self.start_task(lambda: self.add_pixel(date_selected, pixel_config),
+                            self.handle_add_pixel_finish)
 
-        description = json.dumps(self.ui.pixel_description_box.toPlainText())
-
-        pixel_config = {
-            "quantity": quantity,
-            "optionalData": description,
-        }
-
+    # add_pixel() - uses input to create a pixel for a specific date based on selected graph.
+    def add_pixel(self, date_selected, pixel_config):
+        add_pixel_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}/{date_selected}"
         try:
             response = requests.put(url=add_pixel_endpoint, json=pixel_config, headers=self.headers)
             response.raise_for_status()
         except requests.exceptions.HTTPError:
-            return self.add_pixel()
+            return self.add_pixel(date_selected, pixel_config)
         else:
             self.get_graph_image(self.current_graph_id)
             self.update_graph()
