@@ -1,12 +1,13 @@
 import sys
 import os
 from dotenv import load_dotenv
+from PyQt6.QtWidgets import QApplication
 from pixela_manager_main import Main
 from pixela_manager_credentials import CredentialsDialog
-from PyQt6.QtWidgets import QApplication
+from pixela_manager_splash import SplashScreen
+
 
 label_text = ""
-
 
 # clean_up() - Used to remove all cached images when app is closed.
 def clean_up():
@@ -46,9 +47,13 @@ app.aboutToQuit.connect(clean_up)
 save_credentials()
 USERNAME = os.environ["PIXELA_USR"]
 TOKEN = os.environ["PIXELA_TK"]
+splash = SplashScreen()
+splash.show()
+app.processEvents()
 main = Main(USERNAME, TOKEN)
 main.ui.logout_button.clicked.connect(remove_credentials)
 main.show()
+splash.finish(main)
 sys.exit(app.exec())
 
 
