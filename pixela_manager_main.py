@@ -48,6 +48,7 @@ class Main(QWidget):
         # initialize variables that will be used on other methods
         self.graph_color = ""
         self.graph_unit = ""
+        self.pixel_data = {}
         self.graph_dict = self.get_graphs_list()
 
         # connect radio buttons toggled signals for color picking to get_graph_color()
@@ -72,18 +73,18 @@ class Main(QWidget):
         self.update_graph_image()
 
         # connect graph selector menu currentTextChanged signal to update_graph()
-        self.ui.select_graph_menu.currentTextChanged.connect(lambda: self.start_task(self.update_graph,
-                                                                                     self.ui.progress_bar.hide))
+        self.ui.select_graph_menu.currentTextChanged.connect(self.handle_graph_change)
 
         # set date picker to current date on load and connect it to start task slot
         self.ui.date_picker.setDate(QDate.currentDate())
-        self.ui.date_picker.dateChanged.connect(lambda: self.start_task(self.set_pixel_details,
-                                                                        self.ui.progress_bar.hide))
+        self.ui.date_picker.dateChanged.connect(lambda: self.start_task(self.get_pixel_details,
+                                                                        self.handle_date_change_finish))
 
         # connect update pixel button clicked signal to handle_add_pixel()
         self.ui.update_pixel_button.clicked.connect(self.validate_pixel_creation)
 
         # initialize pixel details section
+        self.get_pixel_details()
         self.set_pixel_details()
 
     # INITIAL GRAPH LIST SETUP ---------------------------------
@@ -142,6 +143,8 @@ class Main(QWidget):
             self.graph_dict[graph_config["name"]]["unit"] = graph_config["unit"]
             self.get_graph_image(graph_config["id"])
             self.current_graph_key = graph_config["name"]
+            self.current_graph_id = graph_config["id"]
+            self.get_pixel_details()
 
     # handle_create_finish() - Updates ui after graph creation thread is finished.
     def handle_create_graph_finish(self):
@@ -149,6 +152,7 @@ class Main(QWidget):
         self.update_graph()
         self.ui.graph_name_input.clear()
         self.ui.unit_name_input.clear()
+        self.ui.progress_bar.hide()
 
     # add_graph_to_menu() - Auxiliary method to add new items to the graph selection menu on graph creation.
     def add_graph_to_menu(self, graph):
@@ -216,19 +220,13 @@ class Main(QWidget):
             self.get_graph_image(self.current_graph_id)
             self.update_graph_image()
 
-    # update_graph() - Method to run update_graph_image() and set_pixel_details() at once
-    def update_graph(self):
-        self.current_graph_key = self.ui.select_graph_menu.currentText()
-        self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
-        self.update_graph_image()
-        self.set_pixel_details()
-
     # delete_graph() - deletes graph from Pixela based on selected graph.
     def delete_graph(self):
         delete_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}"
 
         try:
             response = requests.delete(url=delete_endpoint, headers=self.headers)
+            response.raise_for_status()
         except requests.exceptions.HTTPError:
             print("Could not delete graph, try again")
             return self.delete_graph()
@@ -236,20 +234,34 @@ class Main(QWidget):
             self.graph_dict.pop(self.current_graph_key)
             self.ui.select_graph_menu.removeItem(self.ui.select_graph_menu.currentIndex())
 
+    def handle_graph_change(self):
+        self.current_graph_key = self.ui.select_graph_menu.currentText()
+        self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
+        self.start_task(self.get_pixel_details, self.handle_graph_change_finish)
+    # update_graph() - Method to run update_graph_image() and set_pixel_details() at once
+    def update_graph(self):
+        self.update_graph_image()
+        self.set_pixel_details()
+
+    def handle_graph_change_finish(self):
+        self.update_graph()
+        self.ui.progress_bar.hide()
+
     # MANAGE PIXEL SECTION -------------------------------------------------------------
     # get_pixel_details() - Auxiliary method to get data from a specific pixel on Pixela.
     def get_pixel_details(self):
         self.graph_unit = self.graph_dict[self.current_graph_key]["unit"].capitalize()
         date_selected = self.ui.date_picker.date().toString("yyyyMMdd")
         date_formatted = self.ui.date_picker.date().toString("yyyy/MM/dd")
-        self.ui.pixel_units_label.setText(f"{self.graph_unit}:")
         get_pixel_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}/{date_selected}"
 
         try:
             response = requests.get(url=get_pixel_endpoint, headers=self.headers)
+            print("response on get details:", response.json())
             response.raise_for_status()
         except requests.exceptions.HTTPError:
             if response.status_code == 404:
+                self.pixel_data = response.json()
                 return response.json()
 
             print("Could not get details")
@@ -258,13 +270,16 @@ class Main(QWidget):
             pixel_data = response.json()
             pixel_data["unit"] = self.graph_unit
             pixel_data["date"] = date_formatted
-            if pixel_data["optionalData"] == '""':
+            if "optionalData" not in pixel_data:
                 pixel_data["optionalData"] = "No description added."
-            return pixel_data
+            elif pixel_data["optionalData"] == '""':
+                pixel_data["optionalData"] = "No description added."
+            self.pixel_data = pixel_data
 
     # set_pixel_details() - updates the pixel details section based on data returned by get_pixel_details()
     def set_pixel_details(self):
-        pixel_details = self.get_pixel_details()
+        pixel_details = self.pixel_data
+        self.ui.pixel_units_label.setText(f"{self.graph_unit}:")
         if "message" in pixel_details.keys():
             self.ui.pixel_details_label.setText("No Pixel added on this date yet.")
             self.ui.update_pixel_button.setText("Add Pixel")
@@ -274,6 +289,10 @@ class Main(QWidget):
                                             f"Info: {pixel_details['quantity']} {pixel_details['unit']}\n"
                                             f"Description: {pixel_details['optionalData']}")
         self.ui.update_pixel_button.setText("Update Pixel")
+
+    def handle_date_change_finish(self):
+        self.set_pixel_details()
+        self.ui.progress_bar.hide()
 
     # validate_pixel_creation() - Checks that units are present and are valid. Starts add_pixel task if valid.
     def validate_pixel_creation(self):
@@ -305,14 +324,13 @@ class Main(QWidget):
             return self.add_pixel(date_selected, pixel_config)
         else:
             self.get_graph_image(self.current_graph_id)
-            self.update_graph()
+            self.get_pixel_details()
 
     def handle_add_pixel_finish(self):
-        self.ui.progress_bar.hide()
+        self.update_graph()
         self.ui.pixel_units_input.clear()
         self.ui.pixel_description_box.clear()
-
-
+        self.ui.progress_bar.hide()
 
     # start_task() - launches the worker thread to run set_pixel_details in parallel. Allows progress bar to be shown.
     def start_task(self, start_method, finish_method):
