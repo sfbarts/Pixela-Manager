@@ -130,6 +130,7 @@ dmypy.json
 .pyre/
 
 *.svg
-*.png
+desktopIcon.png
 *.psd
+*.ico
 *.db
