@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QWidget, QMessageBox
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import QDate, QThread, pyqtSignal
 from PyQt6 import uic
+from resource_path import *
 
 os.environ['PATH'] += r";C:\vips-dev-8.14\bin"
 import pyvips
@@ -42,13 +43,15 @@ class Main(QWidget):
         self.graph_endpoint = f"{pixela_endpoint}/{username}/graphs"
 
         # import ui from qt designer
-        self.ui = uic.loadUi("Pixela-Manager-Qt_v001.ui", self)
+        self.ui = uic.loadUi(resource_path("./ui_files/Pixela-Manager-Qt_v001.ui"), self)
         self.ui.progress_bar.hide()
 
         # initialize variables that will be used on other methods
         self.graph_color = ""
         self.graph_unit = ""
         self.pixel_data = {}
+        self.current_graph_key = ""
+        self.current_graph_id = ""
         self.graph_dict = self.get_graphs_list()
 
         # connect radio buttons toggled signals for color picking to get_graph_color()
@@ -67,12 +70,11 @@ class Main(QWidget):
 
         # call methods to set up initial graph manager section
         self.set_graph_menu()
-        self.current_graph_key = self.ui.select_graph_menu.currentText()
-        self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
+        self.setup_graph_details()
         self.cache_graph_images()
         self.update_graph_image()
 
-        # connect graph selector menu currentTextChanged signal to update_graph()
+        # connect graph selector menu currentTextChanged signal to handle_graph_change()
         self.ui.select_graph_menu.currentTextChanged.connect(self.handle_graph_change)
 
         # set date picker to current date on load and connect it to start task slot
@@ -80,7 +82,11 @@ class Main(QWidget):
         self.ui.date_picker.dateChanged.connect(lambda: self.start_task(self.get_pixel_details,
                                                                         self.handle_date_change_finish))
 
-        # connect update pixel button clicked signal to handle_add_pixel()
+        # connect delete pixel button clicked signal to start task
+        self.ui.delete_pixel_button.clicked.connect(lambda: self.start_task(self.delete_pixel,
+                                                                            self.handle_update_pixel_finish))
+
+        # connect update pixel button clicked signal to validate_pixel_creation()
         self.ui.update_pixel_button.clicked.connect(self.validate_pixel_creation)
 
         # initialize pixel details section
@@ -103,6 +109,12 @@ class Main(QWidget):
                 response_dict[graph["name"]]["id"] = graph["id"]
                 response_dict[graph["name"]]["unit"] = graph["unit"]
             return response_dict
+
+    def setup_graph_details(self):
+        if self.graph_dict:
+            self.current_graph_key = self.ui.select_graph_menu.currentText()
+            self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
+
 
     # CREATE GRAPH SECTION ------------------------------------
     # validate_graph_creation() - Makes sure names are unique and makes sure all inputs are present.
@@ -197,24 +209,29 @@ class Main(QWidget):
             print("Could not get image")
             return self.get_graph_image(graph_id)
         else:
-            with open(f"image_cache/graph.svg", mode="wb") as graph_image:
+            with open(resource_path(f"image_cache/graph.svg"), mode="wb") as graph_image:
                 graph_image.write(get_graph.content)
-                source = pyvips.Source.new_from_file("image_cache/graph.svg")
+                source = pyvips.Source.new_from_file(resource_path("image_cache/graph.svg"))
                 png_img = pyvips.Image.new_from_source(source, "", dpi=72)
-                target = pyvips.Target.new_to_file(f"image_cache/{graph_id}.png")
+                target = pyvips.Target.new_to_file(resource_path(f"image_cache/{graph_id}.png"))
                 png_img.write_to_target(target, ".png")
 
     # cache_graph_images() - Auxiliary method to save the latest graph image for each graph on start
     def cache_graph_images(self):
-        graphs = [graph["id"] for graph in self.graph_dict.values()]
-        for graph in graphs:
-            if not os.path.exists(f"image_cache/{graph}.png"):
-                self.get_graph_image(graph)
+        if self.graph_dict:
+            graphs = [graph["id"] for graph in self.graph_dict.values()]
+            for graph in graphs:
+                if not os.path.exists(resource_path(f"image_cache/{graph}.png")):
+                    self.get_graph_image(graph)
+        else:
+            self.ui.graph_image.setText("No graphs created yet.")
 
     # update_graph_image() - Auxiliary method to change the current graph images based on selected graph
     def update_graph_image(self):
-        if os.path.exists(f"image_cache/{self.current_graph_id}.png"):
-            graph_pixmap = QPixmap(f"image_cache/{self.current_graph_id}.png")
+        if not self.graph_dict:
+            return
+        if os.path.exists(resource_path(f"image_cache/{self.current_graph_id}.png")):
+            graph_pixmap = QPixmap(resource_path(f"image_cache/{self.current_graph_id}.png"))
             self.ui.graph_image.setPixmap(graph_pixmap)
         else:
             self.get_graph_image(self.current_graph_id)
@@ -222,8 +239,10 @@ class Main(QWidget):
 
     # delete_graph() - deletes graph from Pixela based on selected graph.
     def delete_graph(self):
+        if not self.graph_dict:
+            QMessageBox.warning(self, f"Nonexistent Graph ", f"You need to create a graph first.")
+            return
         delete_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}"
-
         try:
             response = requests.delete(url=delete_endpoint, headers=self.headers)
             response.raise_for_status()
@@ -234,15 +253,22 @@ class Main(QWidget):
             self.graph_dict.pop(self.current_graph_key)
             self.ui.select_graph_menu.removeItem(self.ui.select_graph_menu.currentIndex())
 
+    # handle_graph_change() - Auxiliary method to update graph manager.
     def handle_graph_change(self):
-        self.current_graph_key = self.ui.select_graph_menu.currentText()
-        self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
-        self.start_task(self.get_pixel_details, self.handle_graph_change_finish)
+        if self.graph_dict:
+            self.current_graph_key = self.ui.select_graph_menu.currentText()
+            self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
+            self.start_task(self.get_pixel_details, self.handle_graph_change_finish)
+        else:
+            self.ui.graph_image.clear()
+            self.ui.graph_image.setText("No graphs created yet.")
+
     # update_graph() - Method to run update_graph_image() and set_pixel_details() at once
     def update_graph(self):
         self.update_graph_image()
         self.set_pixel_details()
 
+    # handle_graph_change_finish() - Auxiliary method run after manager is updated to refresh ui.
     def handle_graph_change_finish(self):
         self.update_graph()
         self.ui.progress_bar.hide()
@@ -250,6 +276,9 @@ class Main(QWidget):
     # MANAGE PIXEL SECTION -------------------------------------------------------------
     # get_pixel_details() - Auxiliary method to get data from a specific pixel on Pixela.
     def get_pixel_details(self):
+        if not self.graph_dict:
+            return
+
         self.graph_unit = self.graph_dict[self.current_graph_key]["unit"].capitalize()
         date_selected = self.ui.date_picker.date().toString("yyyyMMdd")
         date_formatted = self.ui.date_picker.date().toString("yyyy/MM/dd")
@@ -279,23 +308,31 @@ class Main(QWidget):
     # set_pixel_details() - updates the pixel details section based on data returned by get_pixel_details()
     def set_pixel_details(self):
         pixel_details = self.pixel_data
-        self.ui.pixel_units_label.setText(f"{self.graph_unit}:")
-        if "message" in pixel_details.keys():
+        if self.graph_unit:
+            self.ui.pixel_units_label.setText(f"{self.graph_unit}:")
+
+        if not pixel_details or "message" in pixel_details.keys():
+            self.ui.delete_pixel_button.hide()
             self.ui.pixel_details_label.setText("No Pixel added on this date yet.")
             self.ui.update_pixel_button.setText("Add Pixel")
             return
 
+        self.ui.delete_pixel_button.show()
         self.ui.pixel_details_label.setText(f"Date: {pixel_details['date']}\n"
                                             f"Info: {pixel_details['quantity']} {pixel_details['unit']}\n"
                                             f"Description: {pixel_details['optionalData']}")
         self.ui.update_pixel_button.setText("Update Pixel")
 
+    # handle_date_change_finish() - Update ui after date change update worker is done.
     def handle_date_change_finish(self):
         self.set_pixel_details()
         self.ui.progress_bar.hide()
 
     # validate_pixel_creation() - Checks that units are present and are valid. Starts add_pixel task if valid.
     def validate_pixel_creation(self):
+        if not self.graph_dict:
+            QMessageBox.warning(self, f"Nonexistent Graph ", f"You need to create a graph first.")
+            return
         unit_name = self.graph_unit
         date_selected = self.ui.date_picker.date().toString("yyyyMMdd")
         quantity = self.ui.pixel_units_input.text()
@@ -312,7 +349,7 @@ class Main(QWidget):
             if description != "":
                 pixel_config["optionalData"] = json.dumps(description)
             self.start_task(lambda: self.add_pixel(date_selected, pixel_config),
-                            self.handle_add_pixel_finish)
+                            self.handle_update_pixel_finish)
 
     # add_pixel() - uses input to create a pixel for a specific date based on selected graph.
     def add_pixel(self, date_selected, pixel_config):
@@ -326,7 +363,21 @@ class Main(QWidget):
             self.get_graph_image(self.current_graph_id)
             self.get_pixel_details()
 
-    def handle_add_pixel_finish(self):
+    # delete_pixel() - handles pixel deletion.
+    def delete_pixel(self):
+        date_selected = self.ui.date_picker.date().toString("yyyyMMdd")
+        delete_pixel_endpoint = f"{self.graph_endpoint}/{self.current_graph_id}/{date_selected}"
+        try:
+            response = requests.delete(url=delete_pixel_endpoint, headers=self.headers)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            return self.delete_pixel()
+        else:
+            self.get_graph_image(self.current_graph_id)
+            self.get_pixel_details()
+
+    # handle_update_pixel_finish() - handles ui update after pixel deletion, addition or update.
+    def handle_update_pixel_finish(self):
         self.update_graph()
         self.ui.pixel_units_input.clear()
         self.ui.pixel_description_box.clear()
