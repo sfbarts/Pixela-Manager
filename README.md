@@ -30,7 +30,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### Using Windows App
+### Using Windows App File
 1. Download the zip file <a href="https://github.com/sfbarts/Pixela-Manager/raw/main/Pixela%20Manager%20v1.0.zip" download="PixelaManager-v1.0">here</a> .
 2. Extract the contents of the folder
 3. Go to the Pixela Manager folder
