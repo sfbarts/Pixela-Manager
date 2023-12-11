@@ -41,5 +41,8 @@ python main.py
 The manager is still bound to Pixela's policies.
 - Latency is expected because of the 25% request rejection policy.
 
+## Features coming soon
+- Pixel details caching for faster response.
+
 
 
