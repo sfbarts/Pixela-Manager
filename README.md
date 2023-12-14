@@ -16,7 +16,7 @@ those that simply prefer the ease of use of a graphical user interface.
 It was built using Python 3.10 and PyQt6
 
 ## Usage
-At the moment, Pixela Manager can be run using python or in windows downloading the app file.
+At the moment, Pixela Manager can only be run using python and it only has been tested in a windows environment.
 
 ### Using Python
 1. Fork the project
@@ -25,16 +25,17 @@ At the moment, Pixela Manager can be run using python or in windows downloading 
 ```bash
 pip install -r requirements.txt
 ```
-4. Run main.py
+4. Pixela Manager relies on "libvips 8.14". If you don't have it installed on your machine, download windows binaries following https://www.libvips.org/install.html
+   
+    - You might need to change line 12 from "pixela_manager_main.py" to point to the folder where you installed libvips.
+      
+   ```python
+   os.environ['PATH'] += r";C:\path\to\libvips"
+   ```
+5. Run main.py
 ```bash
 python main.py
 ```
-
-### Using Windows App File
-1. Download the zip file <a href="https://github.com/sfbarts/Pixela-Manager/raw/main/Pixela%20Manager%20v1.0.zip" download="PixelaManager-v1.0">here</a> .
-2. Extract the contents of the folder
-3. Go to the Pixela Manager folder
-4. Double click on the pixela manager file
 
 
 ## Limitations
@@ -43,6 +44,7 @@ The manager is still bound to Pixela's policies.
 
 ## Features coming soon
 - Pixel details caching for faster response.
+- Windows .exe
 
 
 
