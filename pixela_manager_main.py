@@ -115,7 +115,6 @@ class Main(QWidget):
             self.current_graph_key = self.ui.select_graph_menu.currentText()
             self.current_graph_id = self.graph_dict[self.current_graph_key]["id"]
 
-
     # CREATE GRAPH SECTION ------------------------------------
     # validate_graph_creation() - Makes sure names are unique and makes sure all inputs are present.
     def validate_graph_creation(self):
@@ -209,6 +208,8 @@ class Main(QWidget):
             print("Could not get image")
             return self.get_graph_image(graph_id)
         else:
+            if not os.path.exists(resource_path("image_cache")):
+                os.makedirs("image_cache")
             with open(resource_path(f"image_cache/graph.svg"), mode="wb") as graph_image:
                 graph_image.write(get_graph.content)
                 source = pyvips.Source.new_from_file(resource_path("image_cache/graph.svg"))
