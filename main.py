@@ -11,20 +11,21 @@ from resource_path import *
 
 label_text = ""
 appdata_path = os.getenv('APPDATA')
-env_file_folder = os.path.join(appdata_path, 'Pixela-Manager')
-env_file = os.path.join(env_file_folder, ".env")
+app_file_folder = os.path.join(appdata_path, 'Pixela-Manager')
+env_file = os.path.join(app_file_folder, ".env")
+images_folder = os.path.join(app_file_folder, "image_cache")
 
 
 # Create an app data folder if it does not exist
 def setup_app_data_folder():
-    if not os.path.exists(env_file_folder):
-        os.makedirs(env_file_folder)
+    if not os.path.exists(app_file_folder):
+        os.makedirs(app_file_folder)
 
 
 # clean_up() - Used to remove all cached images when app is closed.
 def clean_up():
-    for file in os.listdir(resource_path("./image_cache")):
-        os.remove(resource_path(f"./image_cache/{file}"))
+    for file in os.listdir(images_folder):
+        os.remove(os.path.join(images_folder, f"{file}"))
 
 
 # remove_credentials() - Used to delete the .env file that contains the credentials
@@ -58,13 +59,13 @@ setup_app_data_folder()
 app = QApplication(sys.argv)
 app.aboutToQuit.connect(clean_up)
 save_credentials()
-subprocess.run(["attrib", "+H", resource_path("./.env")], check=True)
+# subprocess.run(["attrib", "+H", resource_path("./.env")], check=True)
 USERNAME = os.environ["PIXELA_USR"]
 TOKEN = os.environ["PIXELA_TK"]
 splash = SplashScreen()
 splash.show()
 app.processEvents()
-main = Main(USERNAME, TOKEN)
+main = Main(USERNAME, TOKEN, app_file_folder)
 main.ui.logout_button.clicked.connect(remove_credentials)
 main.show()
 splash.finish(main)

@@ -34,13 +34,16 @@ def validate_units(value):
 
 
 class Main(QWidget):
-    def __init__(self, username, token):
+    def __init__(self, username, token, app_data_folder):
         super().__init__()
         self.headers = {
             "X-USER-TOKEN": token,
         }
         pixela_endpoint = "https://pixe.la/v1/users"
         self.graph_endpoint = f"{pixela_endpoint}/{username}/graphs"
+        self.app_data_folder = app_data_folder
+        self.image_path = os.path.join(self.app_data_folder, "image_cache")
+
 
         # import ui from qt designer
         self.ui = uic.loadUi(resource_path("./ui_files/Pixela-Manager-Qt_v001.ui"), self)
@@ -208,13 +211,14 @@ class Main(QWidget):
             print("Could not get image")
             return self.get_graph_image(graph_id)
         else:
-            if not os.path.exists(resource_path("image_cache")):
-                os.makedirs("image_cache")
-            with open(resource_path(f"image_cache/graph.svg"), mode="wb") as graph_image:
+            svg_file = os.path.join(self.image_path, "graph.svg")
+            if not os.path.exists(self.image_path):
+                os.makedirs(self.image_path)
+            with open(svg_file, mode="wb") as graph_image:
                 graph_image.write(get_graph.content)
-                source = pyvips.Source.new_from_file(resource_path("image_cache/graph.svg"))
+                source = pyvips.Source.new_from_file(svg_file)
                 png_img = pyvips.Image.new_from_source(source, "", dpi=72)
-                target = pyvips.Target.new_to_file(resource_path(f"image_cache/{graph_id}.png"))
+                target = pyvips.Target.new_to_file(os.path.join(self.image_path, f"{graph_id}.png"))
                 png_img.write_to_target(target, ".png")
 
     # cache_graph_images() - Auxiliary method to save the latest graph image for each graph on start
@@ -222,7 +226,7 @@ class Main(QWidget):
         if self.graph_dict:
             graphs = [graph["id"] for graph in self.graph_dict.values()]
             for graph in graphs:
-                if not os.path.exists(resource_path(f"image_cache/{graph}.png")):
+                if not os.path.exists(os.path.join(self.image_path, f"{graph}.png")):
                     self.get_graph_image(graph)
         else:
             self.ui.graph_image.setText("No graphs created yet.")
@@ -231,8 +235,8 @@ class Main(QWidget):
     def update_graph_image(self):
         if not self.graph_dict:
             return
-        if os.path.exists(resource_path(f"image_cache/{self.current_graph_id}.png")):
-            graph_pixmap = QPixmap(resource_path(f"image_cache/{self.current_graph_id}.png"))
+        if os.path.exists(os.path.join(self.image_path, f"{self.current_graph_id}.png")):
+            graph_pixmap = QPixmap(os.path.join(self.image_path, f"{self.current_graph_id}.png"))
             self.ui.graph_image.setPixmap(graph_pixmap)
         else:
             self.get_graph_image(self.current_graph_id)
