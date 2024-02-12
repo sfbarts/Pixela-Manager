@@ -31,6 +31,7 @@ def clean_up():
 # remove_credentials() - Used to delete the .env file that contains the credentials
 def remove_credentials():
     os.remove(resource_path(env_file))
+    clean_up()
     sys.exit()
 
 
@@ -59,7 +60,7 @@ setup_app_data_folder()
 app = QApplication(sys.argv)
 app.aboutToQuit.connect(clean_up)
 save_credentials()
-# subprocess.run(["attrib", "+H", resource_path("./.env")], check=True)
+subprocess.run(["attrib", "+H", env_file], check=True)
 USERNAME = os.environ["PIXELA_USR"]
 TOKEN = os.environ["PIXELA_TK"]
 splash = SplashScreen()

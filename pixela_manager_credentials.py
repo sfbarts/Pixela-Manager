@@ -28,7 +28,6 @@ class CredentialsDialog(QDialog):
             while not valid_login:
                 try:
                     graphs_response = requests.get(url=graph_endpoint, headers=headers)
-                    print(graphs_response.json())
                     graphs_response.raise_for_status()
                 except requests.exceptions.HTTPError:
                     if graphs_response.status_code == 503:
