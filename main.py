@@ -10,6 +10,15 @@ from resource_path import *
 
 
 label_text = ""
+appdata_path = os.getenv('APPDATA')
+env_file_folder = os.path.join(appdata_path, 'Pixela-Manager')
+env_file = os.path.join(env_file_folder, ".env")
+
+
+# Create an app data folder if it does not exist
+def setup_app_data_folder():
+    if not os.path.exists(env_file_folder):
+        os.makedirs(env_file_folder)
 
 
 # clean_up() - Used to remove all cached images when app is closed.
@@ -20,13 +29,13 @@ def clean_up():
 
 # remove_credentials() - Used to delete the .env file that contains the credentials
 def remove_credentials():
-    os.remove(resource_path("./.env"))
+    os.remove(resource_path(env_file))
     sys.exit()
 
 
 def save_credentials():
     global label_text
-    with open(resource_path("./.env"), "a+") as env:
+    with open(resource_path(env_file), "a+") as env:
         env.seek(0)
         lines = env.readlines()
         if not lines:
@@ -42,9 +51,10 @@ def save_credentials():
             else:
                 sys.exit()
         env.seek(0)
-        load_dotenv(resource_path("./.env"))
+        load_dotenv(resource_path(env_file))
 
 
+setup_app_data_folder()
 app = QApplication(sys.argv)
 app.aboutToQuit.connect(clean_up)
 save_credentials()
