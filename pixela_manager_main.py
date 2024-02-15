@@ -9,7 +9,7 @@ from PyQt6.QtCore import QDate, QThread, pyqtSignal
 from PyQt6 import uic
 from resource_path import *
 
-os.environ['PATH'] += r";C:\vips-dev-8.14\bin"
+os.environ['PATH'] += r";C:\Program Files\vips-dev-8.14\bin"
 import pyvips
 
 
